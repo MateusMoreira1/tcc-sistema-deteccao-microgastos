@@ -6,11 +6,12 @@ from database import (
     registrar_usuario, login_usuario, logout_usuario, 
     salvar_microgastos_supabase, buscar_historico_supabase
 )
-
-# 1. Configuração inicial obrigatória
+# ==========================================
+# 1. CONFIGURAÇÃO INICIAL E IDENTIDADE VISUAL
+# ==========================================
 st.set_page_config(page_title="SDM Analytics", page_icon="📊", layout="wide")
 
-# 2. Injeção de CSS e Ícones (Corrigido para evitar vazamento de texto)
+# Injeção de CSS e Ícones Sistêmicos (Corrigido para evitar vazamento de texto)
 css_style = """
 <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 <style>
@@ -33,8 +34,9 @@ if 'user' not in st.session_state: st.session_state.user = None
 if 'df_master' not in st.session_state: st.session_state.df_master = None
 if 'perfil_configurado' not in st.session_state: st.session_state.perfil_configurado = False
 
-# Restante do código de autenticação...
-
+# ==========================================
+# 2. FLUXO DE ACESSO (LOGIN / CADASTRO)
+# ==========================================
 if st.session_state.user is None:
     st.write("<br><br><br>", unsafe_allow_html=True)
     c1, col_auth, c2 = st.columns([1, 1.5, 1])
@@ -65,10 +67,13 @@ if st.session_state.user is None:
                     if user: st.success("Usuário registrado. Realize o login.")
                     else: st.error(erro)
 
+# ==========================================
+# 3. DASHBOARD DE ANÁLISE (APLICATIVO)
+# ==========================================
 else:
     c_h1, c_h2 = st.columns([4, 1])
     with c_h1:
-        st.markdown('<h2><span class="material-icons" style="font-size: 32px;">analytics</span>Dashboard de BI</h2>', unsafe_allow_html=True)
+        st.markdown('<h2><span class="material-icons" style="font-size: 32px;">analytics</span>Módulo de Análise e Diagnóstico</h2>', unsafe_allow_html=True)
         st.write(f"Sessão autenticada: **{st.session_state.user.email}**")
     with c_h2:
         st.write("<br>", unsafe_allow_html=True)
@@ -96,11 +101,16 @@ else:
             if st.session_state.perfil_configurado:
                 file = st.file_uploader("Formatos aceitos: PDF, CSV e JSON", type=['pdf', 'csv', 'json'])
                 if file:
-                    with st.spinner("Executando mineração via Regex..."):
-                        engine = SmartFinanceAnalyzer(renda, limite)
-                        st.session_state.df_master = engine.processar_arquivo(file)
-                        st.session_state.df_master['Microgasto?'] = st.session_state.df_master['valor'] <= limite
-                        st.success("Dados minerados com sucesso.")
+                    with st.spinner("Minerando dados via Regex..."):
+                        try:
+                            engine = SmartFinanceAnalyzer(renda, limite)
+                            st.session_state.df_master = engine.processar_arquivo(file)
+                            st.session_state.df_master['Microgasto?'] = st.session_state.df_master['valor'] <= limite
+                            st.success("Dados minerados com sucesso.")
+                        except ValueError as e:
+                            st.error(f"Erro de Compatibilidade: {e}")
+                        except Exception as e:
+                            st.error("Erro inesperado no processamento do arquivo.")
             else:
                 st.warning("Aguardando definição de perfil financeiro.")
 

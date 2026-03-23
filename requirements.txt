@@ -3,3 +3,6 @@ pandas
 plotly
 pypdf
 supabase
+python-dotenv
+postgrest
+httpx
