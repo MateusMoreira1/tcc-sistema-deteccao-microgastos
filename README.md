@@ -5,7 +5,7 @@
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-316192?style=for-the-badge&logo=postgresql&logoColor=white)
 ![Supabase](https://img.shields.io/badge/Supabase-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)
 
-Solução avançada de análise de extratos financeiros desenvolvida para identificar, categorizar e monitorar microgastos em transações bancárias. O sistema processa entradas em múltiplos formatos, aplica regras de mineração contextual (Regex) e gera indicadores de *Business Intelligence* estáticos e precisos para otimização do controle financeiro pessoal.
+Solução avançada de análise de extratos financeiros desenvolvida para identificar, categorizar e monitorar microgastos em transações bancárias. O sistema processa entradas em múltiplos formatos, aplica regras de mineração contextual (Regex) e gera indicadores de *Business Intelligence* precisos para otimização do controle financeiro pessoal.
 
 ## 👥 Autores
 - **Mateus dos Santos Moreira** — Engenharia de Software
@@ -27,14 +27,11 @@ Solução avançada de análise de extratos financeiros desenvolvida para identi
 
 ## 📊 Arquitetura do Sistema
 
-
-
-[Image of MVC software architecture diagram]
-
+*(Se possuir uma imagem da arquitetura, insira-a aqui. Exemplo: `![Arquitetura do Sistema](arquitetura.png)`)*
 
 O projeto adota um padrão arquitetural modular, separando a lógica de negócio, a visualização e a persistência de dados:
 
-1. **`app.py` (View / Frontend):** Interface do usuário em Streamlit responsável pelo roteamento (Login/App), inputs numéricos de alta precisão, auditoria humana e renderização de *dashboards* limpos (com interações de arrastar bloqueadas para melhor usabilidade).
+1. **`app.py` (View / Frontend):** Interface do usuário em Streamlit responsável pelo roteamento (Login/App), inputs numéricos de alta precisão, auditoria humana e renderização de *dashboards* limpos.
 2. **`analyzer.py` (Controller / Engine):** Motor de mineração e processamento de dados. Contém as heurísticas de Regex, normalização de *DataFrames* e a lógica do sistema especialista gerador de "Planos de Ação".
 3. **`database.py` (Model / Integração):** Camada de segurança e banco de dados. Gerencia a comunicação assíncrona com a API do Supabase utilizando *JSON Web Tokens* (JWT) para garantir que cada usuário só acesse seus próprios dados.
 
@@ -77,12 +74,14 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-4. Configure as variáveis de ambiente no arquivo `database.py`:
-```python
+4. **Configuração de Variáveis de Ambiente (Segurança):**
+Crie uma pasta oculta chamada `.streamlit` na raiz do projeto e, dentro dela, um arquivo `secrets.toml`. Adicione suas credenciais do Supabase neste arquivo:
+```toml
+# Arquivo: .streamlit/secrets.toml
 SUPABASE_URL = "SUA_URL_AQUI"
 SUPABASE_KEY = "SUA_CHAVE_AQUI"
 ```
-*(Nota de Desenvolvimento: Para facilitar testes, recomendamos desativar a verificação obrigatória de e-mail ["Confirm Email"] no painel de Authentication do Supabase).*
+*(Nota de Desenvolvimento: Para facilitar testes locais, recomendamos desativar a verificação obrigatória de e-mail ["Confirm Email"] no painel de Authentication do Supabase).*
 
 5. Inicie a aplicação:
 ```bash
