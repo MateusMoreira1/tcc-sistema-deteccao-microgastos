@@ -3,7 +3,7 @@ import plotly.express as px
 import pandas as pd
 from analyzer import SmartFinanceAnalyzer
 from database import (
-    registrar_usuario, login_usuario, logout_usuario, 
+    registrar_usuario, login_usuario, logout_usuario,
     salvar_microgastos_supabase, buscar_historico_supabase
 )
 
@@ -18,16 +18,16 @@ css_style = """
     .stApp { background-color: #0e1117; color: #f8fafc; font-family: 'Inter', sans-serif; }
     h1, h2, h3, h4, label { color: #ffffff !important; }
     div[data-testid="stMetric"] {
-        background-color: #1e293b; padding: 24px; border-radius: 12px; 
+        background-color: #1e293b; padding: 24px; border-radius: 12px;
         border: 1px solid #334155; box-shadow: 0 4px 6px rgba(0,0,0,0.2);
     }
     .material-icons { vertical-align: middle; margin-right: 10px; color: #3b82f6; }
     .stTabs [data-baseweb="tab-list"] { gap: 24px; border-bottom: 2px solid #334155; }
     .stTabs [aria-selected="true"] { color: #3b82f6 !important; border-bottom-color: #3b82f6 !important; }
     [data-testid="stTable"] { background-color: #1e293b; border-radius: 8px; }
-    
+
     .caixa-guia {
-        background-color: #1e293b; padding: 16px 20px; border-radius: 8px; 
+        background-color: #1e293b; padding: 16px 20px; border-radius: 8px;
         margin-bottom: 24px; border-left: 4px solid #3b82f6; font-size: 0.95rem;
     }
 </style>
@@ -38,24 +38,35 @@ if 'user' not in st.session_state: st.session_state.user = None
 if 'df_master' not in st.session_state: st.session_state.df_master = None
 if 'perfil_configurado' not in st.session_state: st.session_state.perfil_configurado = False
 
+
+def calcular_microgasto(df, limite):
+    """Determina o flag 'Microgasto?' considerando DUAS condições:
+    (1) é uma SAÍDA de caixa (tipo == 'saida')
+    (2) o valor está abaixo do threshold definido pelo usuário
+    Entradas (créditos, PIX recebido, estorno, etc.) NUNCA são microgastos."""
+    if 'tipo' not in df.columns:
+        df['tipo'] = 'saida'
+    return (df['valor'] <= limite) & (df['tipo'].astype(str).str.lower() == 'saida')
+
+
 # ==========================================
 # 2. FLUXO DE ACESSO
 # ==========================================
 if st.session_state.user is None:
     st.write("<br><br><br>", unsafe_allow_html=True)
     c1, col_auth, c2 = st.columns([1, 1.5, 1])
-    
+
     with col_auth:
         st.markdown('<h1><span class="material-icons" style="font-size: 40px;">shield</span>SDM Analytics</h1>', unsafe_allow_html=True)
         st.write("Sistema de Detecção de Microgastos | Autenticação")
         st.divider()
-        
+
         modo = st.radio("Selecione o acesso:", ["Acessar Sistema", "Novo Cadastro"], horizontal=True)
         st.write("<br>", unsafe_allow_html=True)
-        
+
         email = st.text_input("E-mail corporativo")
         senha = st.text_input("Senha", type="password")
-        
+
         if modo == "Acessar Sistema":
             if st.button("Autenticar", type="primary", width="stretch"):
                 with st.spinner("Conectando..."):
@@ -87,7 +98,7 @@ else:
             st.rerun()
 
     st.divider()
-    
+
     t1, t2, t3 = st.tabs(["Ingestão de Dados (ETL)", "Auditoria Transacional", "Análise de Impacto & Histórico"])
 
     # --- ABA 1: INGESTÃO ---
@@ -109,7 +120,7 @@ else:
             if st.button("Confirmar Configuração", type="primary"):
                 st.session_state.perfil_configurado = True
                 st.success("Configuração salva. Liberação para upload concedida.")
-        
+
         with col_s2:
             st.markdown('<h4><span class="material-icons">cloud_upload</span>Upload do Extrato</h4>', unsafe_allow_html=True)
             if st.session_state.perfil_configurado:
@@ -118,8 +129,11 @@ else:
                     with st.spinner("Minerando dados via Regex..."):
                         try:
                             engine = SmartFinanceAnalyzer(renda, limite)
-                            st.session_state.df_master = engine.processar_arquivo(file)
-                            st.session_state.df_master['Microgasto?'] = st.session_state.df_master['valor'] <= limite
+                            df_proc = engine.processar_arquivo(file)
+                            # CORREÇÃO: o flag Microgasto? agora exige SAÍDA + valor ≤ threshold.
+                            # Entradas (PIX recebido, estorno, etc.) nunca entram no IM.
+                            df_proc['Microgasto?'] = calcular_microgasto(df_proc, limite)
+                            st.session_state.df_master = df_proc
                             st.success("✅ Dados minerados! Siga para a aba 'Auditoria Transacional'.")
                         except ValueError as e:
                             st.error(f"Erro de formato: {e}")
@@ -133,26 +147,34 @@ else:
         if st.session_state.df_master is not None:
             st.markdown("""
             <div class="caixa-guia" style="border-left-color: #10b981;">
-                <strong>Validação de Categorias:</strong><br>
-                Revise as classificações sugeridas pela Inteligência do sistema. Altere a categoria se necessário.<br> 
+                <strong>Validação de Categorias e Fluxo:</strong><br>
+                Revise as classificações sugeridas pela Inteligência do sistema. Altere a categoria, o
+                tipo de fluxo (saída/entrada) ou desmarque o flag de microgasto se necessário.<br>
                 Ao finalizar, clique em "Salvar Auditoria" e acesse a aba <b>"Análise de Impacto & Histórico"</b>.
             </div>
             """, unsafe_allow_html=True)
-            
+
             cats = ['Alimentação', 'Transporte', 'Assinaturas/Taxas', 'Saúde', 'Lazer', 'Outros']
-            
+            tipos_fluxo = ['saida', 'entrada']
+
             df_edit = st.data_editor(
                 st.session_state.df_master,
                 column_config={
                     "data": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
                     "valor": st.column_config.NumberColumn("Valor (R$)", format="R$ %.2f"),
+                    "tipo": st.column_config.SelectboxColumn("Fluxo", options=tipos_fluxo, help="Saída = gasto; Entrada = crédito"),
                     "categoria": st.column_config.SelectboxColumn("Categoria", options=cats),
                     "Microgasto?": st.column_config.CheckboxColumn("Analisar como Microgasto")
                 },
-                hide_index=True, 
+                hide_index=True,
                 width="stretch"
             )
             if st.button("Salvar Auditoria", type="primary"):
+                # Garante consistência: se o usuário marcou uma transação como ENTRADA,
+                # ela nunca pode ficar com Microgasto?=True. Saídas respeitam o flag manual.
+                df_edit = df_edit.copy()
+                mask_entrada = df_edit['tipo'].astype(str).str.lower() == 'entrada'
+                df_edit.loc[mask_entrada, 'Microgasto?'] = False
                 st.session_state.df_master = df_edit
                 st.success("✅ Dados auditados! Prossiga para a geração dos indicadores.")
         else:
@@ -161,6 +183,9 @@ else:
     # --- ABA 3: RESULTADOS E BI ---
     with t3:
         if st.session_state.df_master is not None:
+            # Filtra apenas microgastos auditados. Como Microgasto? agora só pode ser True
+            # para tipo='saida' E valor<=limite, este filtro já garante que créditos
+            # NÃO entram na soma. Isso resolve o bug de "somar tudo do extrato".
             df_m = st.session_state.df_master[st.session_state.df_master['Microgasto?']].copy()
             total_m = df_m['valor'].sum()
             im = (total_m / renda) * 100 if renda > 0 else 0
@@ -182,59 +207,62 @@ else:
 
             col_g1, col_g2 = st.columns(2)
             with col_g1:
-                fig1 = px.pie(df_m, values='valor', names='categoria', hole=0.5, template="plotly_dark", title="Concentração por Categoria")
-                st.plotly_chart(fig1, width="stretch", config={'displayModeBar': False})
+                if not df_m.empty:
+                    fig1 = px.pie(df_m, values='valor', names='categoria', hole=0.5, template="plotly_dark", title="Concentração por Categoria")
+                    st.plotly_chart(fig1, width="stretch", config={'displayModeBar': False})
+                else:
+                    st.info("Não há microgastos identificados no período para gerar o gráfico de categorias.")
             with col_g2:
-                
-                # --- CORREÇÃO: CRIAÇÃO DO CALENDÁRIO COM O PERÍODO COMPLETO DO EXTRATO ---
+
+                # --- CRIAÇÃO DO CALENDÁRIO COM O PERÍODO COMPLETO DO EXTRATO ---
                 if not df_m.empty:
                     df_m['data'] = pd.to_datetime(df_m['data'], dayfirst=True, errors='coerce')
                     df_m = df_m.dropna(subset=['data'])
-                    
+
                     if not df_m.empty:
                         # 1. Pega dinamicamente a data de início e fim baseada nos dados enviados
                         data_inicio = df_m['data'].min()
                         data_fim = df_m['data'].max()
-                        
+
                         # 2. Cria o calendário contínuo respeitando exatamente as pontas do extrato
                         calendario = pd.date_range(start=data_inicio, end=data_fim, freq='D')
-                        
+
                         # 3. Agrupa todos os gastos por dia exato
                         df_agrupado = df_m.groupby(df_m['data'].dt.date)['valor'].sum()
                         df_agrupado.index = pd.to_datetime(df_agrupado.index)
-                        
+
                         # 4. Injeta no calendário (dias sem gastos viram 0)
                         df_completo = df_agrupado.reindex(calendario, fill_value=0).reset_index()
                         df_completo.columns = ['data', 'valor_diario']
-                        
+
                         # 5. Calcula o acumulado e formata
                         df_completo['valor_acumulado'] = df_completo['valor_diario'].cumsum()
                         df_completo['dia_mes'] = df_completo['data'].dt.strftime('%d/%m')
-                        
+
                         # 6. Gráfico de Colunas dinâmico
                         fig2 = px.bar(
-                            df_completo, 
-                            x='dia_mes', 
-                            y='valor_acumulado', 
+                            df_completo,
+                            x='dia_mes',
+                            y='valor_acumulado',
                             text='valor_acumulado',
-                            template="plotly_dark", 
+                            template="plotly_dark",
                             title=f"Crescimento Acumulado ({data_inicio.strftime('%d/%m/%Y')} a {data_fim.strftime('%d/%m/%Y')})"
                         )
-                        
+
                         fig2.update_traces(
-                            texttemplate='%{text:.2f}', 
+                            texttemplate='%{text:.2f}',
                             textposition='outside',
                             cliponaxis=False
                         )
-                        
+
                         fig2.update_layout(
-                            dragmode=False, 
-                            xaxis_title="Dias do Extrato", 
+                            dragmode=False,
+                            xaxis_title="Dias do Extrato",
                             yaxis_title="Impacto Acumulado (R$)",
                             xaxis={'type': 'category'},
-                            bargap=0.2 
+                            bargap=0.2
                         )
-                        
+
                         st.plotly_chart(fig2, width="stretch", config={'displayModeBar': False})
                 else:
                     st.info("Não há dados de microgastos para gerar o gráfico.")
@@ -243,21 +271,21 @@ else:
 
             st.markdown('<h4><span class="material-icons">history</span>Evolução Mensal (Filtro Dinâmico)</h4>', unsafe_allow_html=True)
             df_hist = buscar_historico_supabase(st.session_state.user.id)
-            
+
             if not df_hist.empty:
                 df_hist['mes_ano'] = df_hist['data'].dt.strftime('%m/%Y')
                 res_mensal = df_hist.groupby('mes_ano')['valor'].sum().reset_index()
-                
+
                 filtros = st.multiselect("Selecionar meses para comparação:", options=res_mensal['mes_ano'].unique())
                 df_final = res_mensal[res_mensal['mes_ano'].isin(filtros)] if filtros else res_mensal
-                
+
                 fig3 = px.bar(df_final, x='mes_ano', y='valor', text='valor', template="plotly_dark")
                 fig3.update_traces(texttemplate='R$ %{text:.2f}', textposition='outside')
                 fig3.update_layout(dragmode=False, xaxis_title="", yaxis_title="Impacto Financeiro (R$)")
                 st.plotly_chart(fig3, width="stretch", config={'displayModeBar': False})
             else:
                 st.info("Nenhum histórico salvo na nuvem para realizar comparações.")
-            
+
             st.write("<br>", unsafe_allow_html=True)
             if st.button("Persistir Dados na Nuvem", type="primary", width="stretch"):
                 if salvar_microgastos_supabase(st.session_state.df_master, st.session_state.user.id):
