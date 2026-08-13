@@ -15,20 +15,82 @@ st.set_page_config(page_title="SDM Analytics", page_icon="📊", layout="wide")
 css_style = """
 <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 <style>
-    .stApp { background-color: #0e1117; color: #f8fafc; font-family: 'Inter', sans-serif; }
-    h1, h2, h3, h4, label { color: #ffffff !important; }
-    div[data-testid="stMetric"] {
-        background-color: #1e293b; padding: 24px; border-radius: 12px;
-        border: 1px solid #334155; box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+    /* Corpo geral — aumento moderado da base tipográfica */
+    .stApp {
+        background-color: #0e1117;
+        color: #f8fafc;
+        font-family: 'Inter', sans-serif;
+        font-size: 16px;
     }
-    .material-icons { vertical-align: middle; margin-right: 10px; color: #3b82f6; }
-    .stTabs [data-baseweb="tab-list"] { gap: 24px; border-bottom: 2px solid #334155; }
-    .stTabs [aria-selected="true"] { color: #3b82f6 !important; border-bottom-color: #3b82f6 !important; }
-    [data-testid="stTable"] { background-color: #1e293b; border-radius: 8px; }
+    h1, h2, h3, h4, label { color: #ffffff !important; }
 
+    /* Textos em prosa (st.write, markdown livre) — mais respiração */
+    .stMarkdown p, .stMarkdown li, .stMarkdown span {
+        font-size: 1.05rem;
+        line-height: 1.6;
+    }
+
+    /* Labels de inputs (Renda, Threshold, E-mail, etc.) */
+    label {
+        font-size: 1.05rem !important;
+        font-weight: 500 !important;
+    }
+
+    /* Métricas (Impacto Acumulado / Índice de Microgastos) — DESTAQUE */
+    div[data-testid="stMetric"] {
+        background-color: #1e293b;
+        padding: 28px;
+        border-radius: 12px;
+        border: 1px solid #334155;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+    }
+    /* Rótulo da métrica ("Impacto Acumulado (R$)") */
+    div[data-testid="stMetricLabel"] {
+        font-size: 1.1rem !important;
+        font-weight: 500 !important;
+    }
+    /* Valor da métrica (o número grande) */
+    div[data-testid="stMetricValue"] {
+        font-size: 2.4rem !important;
+        font-weight: 600 !important;
+    }
+
+    .material-icons { vertical-align: middle; margin-right: 10px; color: #3b82f6; }
+
+    /* Abas mais legíveis (Ingestão / Auditoria / Análise) */
+    .stTabs [data-baseweb="tab-list"] { gap: 24px; border-bottom: 2px solid #334155; }
+    .stTabs [data-baseweb="tab-list"] button {
+        font-size: 1.05rem !important;
+        font-weight: 500 !important;
+    }
+    .stTabs [aria-selected="true"] { color: #3b82f6 !important; border-bottom-color: #3b82f6 !important; }
+
+    /* Tabelas e data grid */
+    [data-testid="stTable"] { background-color: #1e293b; border-radius: 8px; }
+    [data-testid="stDataFrame"] {
+        font-size: 1rem !important;
+    }
+
+    /* Botões */
+    .stButton button {
+        font-size: 1.02rem !important;
+        font-weight: 500 !important;
+    }
+
+    /* Caixas de instrução */
     .caixa-guia {
-        background-color: #1e293b; padding: 16px 20px; border-radius: 8px;
-        margin-bottom: 24px; border-left: 4px solid #3b82f6; font-size: 0.95rem;
+        background-color: #1e293b;
+        padding: 20px 24px;
+        border-radius: 8px;
+        margin-bottom: 24px;
+        border-left: 4px solid #3b82f6;
+        font-size: 1.05rem;
+        line-height: 1.6;
+    }
+
+    /* Mensagens de status (success, warning, error) */
+    div[data-testid="stAlert"] {
+        font-size: 1.05rem !important;
     }
 </style>
 """
@@ -208,7 +270,15 @@ else:
             col_g1, col_g2 = st.columns(2)
             with col_g1:
                 if not df_m.empty:
-                    fig1 = px.pie(df_m, values='valor', names='categoria', hole=0.5, template="plotly_dark", title="Concentração por Categoria")
+                    fig1 = px.pie(df_m, values='valor', names='categoria', hole=0.5,
+                                  template="plotly_dark", title="Concentração por Categoria")
+                    # AJUSTE VISUAL: fontes maiores no gráfico
+                    fig1.update_layout(
+                        font=dict(size=15),
+                        title_font=dict(size=20),
+                        legend=dict(font=dict(size=14))
+                    )
+                    fig1.update_traces(textfont_size=14)
                     st.plotly_chart(fig1, width="stretch", config={'displayModeBar': False})
                 else:
                     st.info("Não há microgastos identificados no período para gerar o gráfico de categorias.")
@@ -249,18 +319,24 @@ else:
                             title=f"Crescimento Acumulado ({data_inicio.strftime('%d/%m/%Y')} a {data_fim.strftime('%d/%m/%Y')})"
                         )
 
+                        # AJUSTE VISUAL: rótulos das barras maiores
                         fig2.update_traces(
                             texttemplate='%{text:.2f}',
                             textposition='outside',
-                            cliponaxis=False
+                            cliponaxis=False,
+                            textfont=dict(size=13)
                         )
 
+                        # AJUSTE VISUAL: fontes maiores em título, eixos e tick labels
                         fig2.update_layout(
                             dragmode=False,
-                            xaxis_title="Dias do Extrato",
-                            yaxis_title="Impacto Acumulado (R$)",
-                            xaxis={'type': 'category'},
-                            bargap=0.2
+                            bargap=0.2,
+                            font=dict(size=15),
+                            title_font=dict(size=20),
+                            xaxis=dict(type='category', title="Dias do Extrato",
+                                       tickfont=dict(size=13), title_font=dict(size=15)),
+                            yaxis=dict(title="Impacto Acumulado (R$)",
+                                       tickfont=dict(size=13), title_font=dict(size=15))
                         )
 
                         st.plotly_chart(fig2, width="stretch", config={'displayModeBar': False})
@@ -280,8 +356,20 @@ else:
                 df_final = res_mensal[res_mensal['mes_ano'].isin(filtros)] if filtros else res_mensal
 
                 fig3 = px.bar(df_final, x='mes_ano', y='valor', text='valor', template="plotly_dark")
-                fig3.update_traces(texttemplate='R$ %{text:.2f}', textposition='outside')
-                fig3.update_layout(dragmode=False, xaxis_title="", yaxis_title="Impacto Financeiro (R$)")
+                # AJUSTE VISUAL: rótulos das barras
+                fig3.update_traces(
+                    texttemplate='R$ %{text:.2f}',
+                    textposition='outside',
+                    textfont=dict(size=14)
+                )
+                # AJUSTE VISUAL: fontes maiores nos eixos e no corpo
+                fig3.update_layout(
+                    dragmode=False,
+                    font=dict(size=15),
+                    xaxis=dict(title="", tickfont=dict(size=13)),
+                    yaxis=dict(title="Impacto Financeiro (R$)",
+                               tickfont=dict(size=13), title_font=dict(size=15))
+                )
                 st.plotly_chart(fig3, width="stretch", config={'displayModeBar': False})
             else:
                 st.info("Nenhum histórico salvo na nuvem para realizar comparações.")
