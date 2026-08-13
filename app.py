@@ -349,6 +349,13 @@ else:
             df_hist = buscar_historico_supabase(st.session_state.user.id)
 
             if not df_hist.empty:
+                # CORREÇÃO defensiva: se o banco tiver a coluna 'Microgasto?'
+                # persistida, considera apenas os microgastos no somatório mensal.
+                # (Nova persistência já entrega só microgastos, mas registros antigos
+                # podem ter vindo com todas as transações; este filtro protege o gráfico.)
+                if 'Microgasto?' in df_hist.columns:
+                    df_hist = df_hist[df_hist['Microgasto?'] == True].copy()
+
                 df_hist['mes_ano'] = df_hist['data'].dt.strftime('%m/%Y')
                 res_mensal = df_hist.groupby('mes_ano')['valor'].sum().reset_index()
 
@@ -376,6 +383,14 @@ else:
 
             st.write("<br>", unsafe_allow_html=True)
             if st.button("Persistir Dados na Nuvem", type="primary", width="stretch"):
-                if salvar_microgastos_supabase(st.session_state.df_master, st.session_state.user.id):
-                    st.success("Dados sincronizados de forma segura no Supabase.")
+                # CORREÇÃO: só persistir as linhas efetivamente marcadas como microgasto.
+                # Antes, era passado o DataFrame inteiro, o que fazia o banco armazenar
+                # todas as transações e inflava o gráfico de Evolução Mensal.
+                df_para_salvar = st.session_state.df_master[
+                    st.session_state.df_master['Microgasto?'] == True
+                ].copy()
+                if df_para_salvar.empty:
+                    st.warning("Não há microgastos auditados para sincronizar.")
+                elif salvar_microgastos_supabase(df_para_salvar, st.session_state.user.id):
+                    st.success(f"Sincronizados {len(df_para_salvar)} microgastos no Supabase.")
                     st.balloons()
