@@ -33,6 +33,23 @@ def logout_usuario():
     except Exception:
         pass
 
+
+def enviar_reset_senha(email):
+    """Envia link de redefinição de senha para o e-mail informado.
+
+    O Supabase gera automaticamente um link seguro (com token temporário)
+    e envia por e-mail. Ao clicar, o usuário é redirecionado para a página
+    de definição de nova senha do próprio Supabase.
+
+    Retorna: (sucesso: bool, mensagem_erro: str | None)
+    """
+    try:
+        supabase.auth.reset_password_for_email(email)
+        return True, None
+    except Exception as e:
+        return False, str(e)
+
+
 # --- MÓDULO DE PERSISTÊNCIA DE DADOS ---
 def salvar_microgastos_supabase(df, usuario_id):
     """Persiste os dados auditados na nuvem vinculados ao usuario_id (Multi-tenant)."""
