@@ -92,6 +92,12 @@ def gerar_css(tema='dark'):
             'btn_sec_border':  '#334155',
             'plotly_bg':       '#0e1117',
             'plotly_text':     '#f8fafc',
+            'fb_positivo_bg':     'rgba(16, 185, 129, 0.12)',
+            'fb_positivo_border': '#10b981',
+            'fb_atencao_bg':      'rgba(245, 158, 11, 0.12)',
+            'fb_atencao_border':  '#f59e0b',
+            'fb_risco_bg':        'rgba(239, 68, 68, 0.14)',
+            'fb_risco_border':    '#ef4444',
         }
     else:
         cores = {
@@ -111,6 +117,12 @@ def gerar_css(tema='dark'):
             'btn_sec_border':  '#cbd5e1',
             'plotly_bg':       '#ffffff',
             'plotly_text':     '#0f172a',
+            'fb_positivo_bg':     'rgba(16, 185, 129, 0.08)',
+            'fb_positivo_border': '#059669',
+            'fb_atencao_bg':      'rgba(245, 158, 11, 0.10)',
+            'fb_atencao_border':  '#d97706',
+            'fb_risco_bg':        'rgba(239, 68, 68, 0.08)',
+            'fb_risco_border':    '#dc2626',
         }
     return f"""
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
@@ -388,6 +400,70 @@ def gerar_css(tema='dark'):
         span[data-baseweb="tag"] span {{
             color: #ffffff !important;
         }}
+
+        /* ===== CARD DE FEEDBACK PERSONALIZADO (Análise de Impacto) ===== */
+        .feedback-card {{
+            border-radius: 14px;
+            padding: 24px 28px;
+            margin: 8px 0 24px 0;
+            border-left: 6px solid;
+            box-shadow: {cores['shadow']};
+        }}
+        .feedback-positivo {{
+            background-color: {cores['fb_positivo_bg']};
+            border-left-color: {cores['fb_positivo_border']};
+        }}
+        .feedback-atencao {{
+            background-color: {cores['fb_atencao_bg']};
+            border-left-color: {cores['fb_atencao_border']};
+        }}
+        .feedback-risco {{
+            background-color: {cores['fb_risco_bg']};
+            border-left-color: {cores['fb_risco_border']};
+        }}
+        .feedback-header {{
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 10px;
+        }}
+        .feedback-emoji {{
+            font-size: 2.4rem;
+            line-height: 1;
+        }}
+        .feedback-title {{
+            font-size: 1.35rem;
+            font-weight: 700;
+            color: {cores['text_head']};
+            margin: 0;
+        }}
+        .feedback-subtitle {{
+            font-size: 1rem;
+            color: {cores['text_muted']};
+            margin-top: 2px;
+        }}
+        .feedback-text {{
+            font-size: 1.05rem;
+            line-height: 1.6;
+            color: {cores['text']};
+            margin: 12px 0;
+        }}
+        .feedback-highlight {{
+            background-color: {cores['card']};
+            border: 1px solid {cores['card_border']};
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin: 12px 0;
+            font-size: 1rem;
+            color: {cores['text']};
+        }}
+        .feedback-tip {{
+            font-size: 1rem;
+            color: {cores['text']};
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid {cores['card_border']};
+        }}
     </style>
     """
 
@@ -648,12 +724,66 @@ else:
             engine = SmartFinanceAnalyzer(renda, limite)
             plano_acao = engine.gerar_plano_acao(df_m, im)
 
-            if im <= 5:
-                st.success(f"🎯 **Cenário Positivo:** {plano_acao}")
-            elif im <= 12:
-                st.warning(f"⚠️ **Ponto de Atenção:** {plano_acao}")
+            # ---- Contexto adicional para o feedback (não altera analyzer.py) ----
+            # Identifica a categoria de maior impacto dentro dos microgastos
+            # auditados, para personalizar a dica exibida ao cliente.
+            if not df_m.empty:
+                resumo_categoria = df_m.groupby('categoria')['valor'].sum().sort_values(ascending=False)
+                categoria_top = resumo_categoria.index[0]
+                valor_top = resumo_categoria.iloc[0]
+                pct_top = (valor_top / total_m * 100) if total_m > 0 else 0
             else:
-                st.error(f"🚨 **Risco Orçamentário:** {plano_acao}")
+                categoria_top, valor_top, pct_top = None, 0, 0
+
+            # Dicas específicas por categoria — puramente de apresentação,
+            # não interfere em nenhum cálculo do sistema.
+            DICAS_CATEGORIA = {
+                'Alimentação': "Planeje as refeições da semana com antecedência e evite pedidos por aplicativo em dias seguidos — pequenas trocas aqui costumam gerar a maior economia.",
+                'Transporte': "Avalie se corridas de aplicativo recorrentes podem ser parcialmente substituídas por transporte público ou caronas compartilhadas.",
+                'Assinaturas/Taxas': "Revise suas assinaturas ativas: serviços de streaming, apps e tarifas bancárias esquecidas são microgastos clássicos.",
+                'Saúde': "Verifique se há gastos recorrentes com farmácia ou suplementos que poderiam ser comprados em maior quantidade, com desconto.",
+                'Lazer': "Considere estabelecer um limite mensal para saídas e entretenimento, mantendo espaço para o que realmente importa para você.",
+                'Outros': "Boa parte desses gastos ainda está classificada como 'Outros' — vale revisar a auditoria para identificar padrões mais específicos.",
+            }
+            dica = DICAS_CATEGORIA.get(
+                categoria_top,
+                "Continue acompanhando seus microgastos regularmente para manter o controle."
+            ) if categoria_top else "Nenhum microgasto identificado neste período."
+
+            if im <= 5:
+                nivel, emoji, titulo = "positivo", "🎯", "Cenário Positivo"
+            elif im <= 12:
+                nivel, emoji, titulo = "atencao", "⚠️", "Ponto de Atenção"
+            else:
+                nivel, emoji, titulo = "risco", "🚨", "Risco Orçamentário"
+
+            # IMPORTANTE: cada trecho é uma string "achatada", sem espaços de
+            # indentação no início da linha. O Markdown trata qualquer linha
+            # com 4+ espaços à esquerda como um bloco de código — foi isso
+            # que causou o HTML aparecer como texto bruto na tela anterior.
+            partes_html = [
+                f'<div class="feedback-card feedback-{nivel}">',
+                '<div class="feedback-header">',
+                f'<span class="feedback-emoji">{emoji}</span>',
+                '<div>',
+                f'<p class="feedback-title">{titulo}</p>',
+                f'<div class="feedback-subtitle">Seu Índice de Microgastos está em {im:.2f}%</div>',
+                '</div>',
+                '</div>',
+                f'<p class="feedback-text">{plano_acao}</p>',
+            ]
+            if categoria_top:
+                partes_html.append(
+                    f'<div class="feedback-highlight"><strong>Categoria de maior impacto:</strong> '
+                    f'{categoria_top} — R$ {valor_top:.2f} ({pct_top:.1f}% dos seus microgastos)</div>'
+                )
+            partes_html.append(
+                f'<div class="feedback-tip">💡 <strong>Dica personalizada:</strong> {dica}</div>'
+            )
+            partes_html.append('</div>')
+
+            card_html = "".join(partes_html)
+            st.markdown(card_html, unsafe_allow_html=True)
 
             st.markdown('<h4><span class="material-icons">insights</span>Indicadores de Desempenho</h4>', unsafe_allow_html=True)
             c_m1, c_m2 = st.columns(2)
@@ -726,7 +856,7 @@ else:
 
             st.divider()
 
-            st.markdown('<h4><span class="material-icons">history</span>Evolução Mensal (Filtro Dinâmico)</h4>', unsafe_allow_html=True)
+            st.markdown('<h4><span class="material-icons">bar_chart</span>Comparativo por Categoria entre Meses</h4>', unsafe_allow_html=True)
             df_hist = buscar_historico_supabase(st.session_state.user.id)
 
             if not df_hist.empty:
@@ -734,28 +864,107 @@ else:
                     df_hist = df_hist[df_hist['Microgasto?'] == True].copy()
 
                 df_hist['mes_ano'] = df_hist['data'].dt.strftime('%m/%Y')
-                res_mensal = df_hist.groupby('mes_ano')['valor'].sum().reset_index()
 
-                filtros = st.multiselect("Selecionar meses para comparação:", options=res_mensal['mes_ano'].unique())
-                df_final = res_mensal[res_mensal['mes_ano'].isin(filtros)] if filtros else res_mensal
+                if 'categoria' in df_hist.columns:
+                    # ---- Gráfico de barras agrupadas: categoria x mês ----
+                    # Permite visualizar qual categoria mais cresceu de um mês para o outro.
+                    res_categoria_mes = df_hist.groupby(['mes_ano', 'categoria'])['valor'].sum().reset_index()
 
-                fig3 = px.bar(df_final, x='mes_ano', y='valor', text='valor', template=plotly_template)
-                fig3.update_traces(
-                    texttemplate='R$ %{text:.2f}',
-                    textposition='outside',
-                    textfont=dict(size=14)
-                )
-                fig3.update_layout(
-                    dragmode=False,
-                    paper_bgcolor=plotly_bg,
-                    plot_bgcolor=plotly_bg,
-                    font=dict(size=15, color=plotly_text),
-                    xaxis=dict(title="", tickfont=dict(size=13, color=plotly_text)),
-                    yaxis=dict(title="Impacto Financeiro (R$)",
-                               tickfont=dict(size=13, color=plotly_text),
-                               title_font=dict(size=15, color=plotly_text))
-                )
-                st.plotly_chart(fig3, width="stretch", config={'displayModeBar': False})
+                    meses_disponiveis = sorted(
+                        res_categoria_mes['mes_ano'].unique(),
+                        key=lambda m: pd.to_datetime(m, format='%m/%Y')
+                    )
+
+                    filtros = st.multiselect(
+                        "Selecionar meses para comparação:",
+                        options=meses_disponiveis,
+                        default=meses_disponiveis[-2:] if len(meses_disponiveis) >= 2 else meses_disponiveis
+                    )
+                    df_final = res_categoria_mes[res_categoria_mes['mes_ano'].isin(filtros)] if filtros else res_categoria_mes
+
+                    # Ordena o eixo X cronologicamente (não alfabeticamente)
+                    ordem_meses = sorted(
+                        df_final['mes_ano'].unique(),
+                        key=lambda m: pd.to_datetime(m, format='%m/%Y')
+                    )
+
+                    fig3 = px.bar(
+                        df_final,
+                        x='mes_ano',
+                        y='valor',
+                        color='categoria',
+                        barmode='group',
+                        text='valor',
+                        template=plotly_template,
+                        category_orders={'mes_ano': ordem_meses}
+                    )
+                    fig3.update_traces(
+                        texttemplate='R$ %{text:.0f}',
+                        textposition='outside',
+                        textfont=dict(size=11)
+                    )
+                    fig3.update_layout(
+                        dragmode=False,
+                        height=460,
+                        paper_bgcolor=plotly_bg,
+                        plot_bgcolor=plotly_bg,
+                        font=dict(size=15, color=plotly_text),
+                        legend_title_text='Categoria',
+                        legend=dict(font=dict(size=13, color=plotly_text)),
+                        xaxis=dict(title="", tickfont=dict(size=13, color=plotly_text)),
+                        yaxis=dict(title="Impacto Financeiro (R$)",
+                                   tickfont=dict(size=13, color=plotly_text),
+                                   title_font=dict(size=15, color=plotly_text))
+                    )
+                    st.plotly_chart(fig3, width="stretch", config={'displayModeBar': False})
+
+                    # Destaque textual: categoria que mais aumentou entre os dois últimos meses selecionados
+                    if len(filtros) >= 2:
+                        meses_ordenados = sorted(filtros, key=lambda m: pd.to_datetime(m, format='%m/%Y'))
+                        mes_anterior, mes_atual = meses_ordenados[-2], meses_ordenados[-1]
+                        pivot = res_categoria_mes[res_categoria_mes['mes_ano'].isin([mes_anterior, mes_atual])] \
+                            .pivot(index='categoria', columns='mes_ano', values='valor').fillna(0)
+                        if mes_anterior in pivot.columns and mes_atual in pivot.columns:
+                            pivot['variacao'] = pivot[mes_atual] - pivot[mes_anterior]
+                            categoria_maior_alta = pivot['variacao'].idxmax()
+                            variacao_valor = pivot['variacao'].max()
+                            if variacao_valor > 0:
+                                st.info(
+                                    f"📈 **{categoria_maior_alta}** foi a categoria que mais aumentou de "
+                                    f"{mes_anterior} para {mes_atual}, com alta de R$ {variacao_valor:.2f}."
+                                )
+                else:
+                    # ---- Fallback defensivo ----
+                    # A coluna 'categoria' não está presente no histórico retornado pelo
+                    # Supabase. Isso não quebra o site: mostramos o gráfico mensal total
+                    # (comportamento anterior) e avisamos o que falta para habilitar a
+                    # comparação por categoria.
+                    st.warning(
+                        "A comparação por categoria requer que a coluna **categoria** esteja "
+                        "salva no histórico do Supabase. Exibindo o total mensal (sem "
+                        "detalhamento por categoria) até que essa coluna esteja disponível."
+                    )
+                    res_mensal = df_hist.groupby('mes_ano')['valor'].sum().reset_index()
+                    filtros = st.multiselect("Selecionar meses para comparação:", options=res_mensal['mes_ano'].unique())
+                    df_final = res_mensal[res_mensal['mes_ano'].isin(filtros)] if filtros else res_mensal
+
+                    fig3 = px.bar(df_final, x='mes_ano', y='valor', text='valor', template=plotly_template)
+                    fig3.update_traces(
+                        texttemplate='R$ %{text:.2f}',
+                        textposition='outside',
+                        textfont=dict(size=14)
+                    )
+                    fig3.update_layout(
+                        dragmode=False,
+                        paper_bgcolor=plotly_bg,
+                        plot_bgcolor=plotly_bg,
+                        font=dict(size=15, color=plotly_text),
+                        xaxis=dict(title="", tickfont=dict(size=13, color=plotly_text)),
+                        yaxis=dict(title="Impacto Financeiro (R$)",
+                                   tickfont=dict(size=13, color=plotly_text),
+                                   title_font=dict(size=15, color=plotly_text))
+                    )
+                    st.plotly_chart(fig3, width="stretch", config={'displayModeBar': False})
             else:
                 st.info("Nenhum histórico salvo na nuvem para realizar comparações.")
 
