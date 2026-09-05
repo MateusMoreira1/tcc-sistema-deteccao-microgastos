@@ -359,6 +359,16 @@ def gerar_css(tema='dark'):
             caret-color: {cores['input_text']} !important;
         }}
 
+        /* ===== INSTRUÇÃO "Press Enter to submit form" =====
+           Dentro de um st.form, o Streamlit mostra automaticamente esse
+           aviso flutuando dentro do campo — no campo de senha ele fica
+           sobreposto ao ícone de mostrar/ocultar senha, ilegível. Como é
+           só uma dica informativa (não afeta a funcionalidade de Enter,
+           que continua funcionando normalmente), escondemos por completo. */
+        [data-testid="InputInstructions"] {{
+            display: none !important;
+        }}
+
         /* ===== SELECTBOX / MULTISELECT — CAIXA FECHADA =====
            Reforço adicional (além do bloco acima) para garantir que a
            caixa fechada (antes de abrir o menu) tenha fundo e texto
@@ -721,9 +731,6 @@ else:
             total_m = df_m['valor'].sum()
             im = (total_m / renda) * 100 if renda > 0 else 0
 
-            engine = SmartFinanceAnalyzer(renda, limite)
-            plano_acao = engine.gerar_plano_acao(df_m, im)
-
             # ---- Contexto adicional para o feedback (não altera analyzer.py) ----
             # Identifica a categoria de maior impacto dentro dos microgastos
             # auditados, para personalizar a dica exibida ao cliente.
@@ -770,7 +777,6 @@ else:
                 f'<div class="feedback-subtitle">Seu Índice de Microgastos está em {im:.2f}%</div>',
                 '</div>',
                 '</div>',
-                f'<p class="feedback-text">{plano_acao}</p>',
             ]
             if categoria_top:
                 partes_html.append(
