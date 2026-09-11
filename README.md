@@ -20,7 +20,7 @@ Solução avançada de análise de extratos financeiros desenvolvida para identi
 - [Licença acadêmica](#-licença-acadêmica)
 
 ## 👥 Autores
-- **Mateus Santos Moreira** — Sistemas de Informação
+- **Mateus dos Santos Moreira** — Engenharia de Software
 - **Sarah Costa Silva** — Sistemas de Informação
 
 ---
