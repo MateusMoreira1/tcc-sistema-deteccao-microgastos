@@ -91,8 +91,15 @@ O projeto adota um padrão arquitetural modular, separando a lógica de negócio
 2. **`analyzer.py` (Controller / Engine):** Motor de mineração e processamento de dados. Contém as heurísticas de Regex, normalização de *DataFrames* e a lógica do sistema especialista gerador de "planos de ação".
 3. **`database.py` (Model / Integração):** Camada de segurança e banco de dados. Gerencia a comunicação com a API do Supabase — login, cadastro, redefinição de senha, exclusão de conta e persistência de microgastos — utilizando *JSON Web Tokens* (JWT) para garantir que cada usuário só acesse seus próprios dados.
 
-<img src="docs/diagramas/diagrama_casos_de_uso_v2.png" alt="Diagrama de casos de uso"/>
-<p><sub>Diagrama de casos de uso (UML)</sub></p>
+<img src="docs/diagramas/diagrama_componentes.png" alt="Diagrama de componentes do sistema"/>
+<p><sub>Diagrama de componentes (UML)</sub></p>
+
+### Pipeline de dados (ETL)
+
+O processamento dos extratos bancários segue um fluxo adaptado do modelo ETL tradicional, com uma etapa intermediária de validação humana (*Audit*), conforme o paradigma *human-in-the-loop* (Holzinger, 2016):
+
+<img src="docs/diagramas/fluxograma_etl.png" alt="Fluxograma do pipeline ETL"/>
+<p><sub>Fluxograma do pipeline Extract, Transform, Audit e Load</sub></p>
 
 ### Modelo de dados
 
@@ -100,6 +107,11 @@ O banco relacional (PostgreSQL/Supabase) é composto por três entidades — `us
 
 <img src="docs/diagramas/mer_sdm_analytics_v2.png" alt="Modelo Entidade-Relacionamento"/>
 <p><sub>MER — Modelo entidade-relacionamento (notação de Chen)</sub></p>
+
+### Casos de uso
+
+<img src="docs/diagramas/diagrama_casos_de_uso_v2.png" alt="Diagrama de casos de uso"/>
+<p><sub>Diagrama de casos de uso (UML)</sub></p>
 
 ---
 
@@ -125,7 +137,7 @@ git clone https://github.com/MateusMoreira1/tcc-sistema-deteccao-microgastos.git
 cd tcc-sistema-deteccao-microgastos
 ```
 
-> 📁 As imagens deste README ficam em `docs/screenshots/` (capturas de tela do sistema) e `docs/diagramas/` (MER e diagrama de casos de uso). Ambas as pastas já acompanham o repositório.
+> 📁 As imagens deste README ficam em `docs/screenshots/` (capturas de tela do sistema) e `docs/diagramas/` (MER, diagrama de casos de uso, diagrama de componentes e fluxograma ETL). Ambas as pastas já acompanham o repositório.
 
 2. Crie e ative o ambiente virtual Python (recomendado):
 ```bash
@@ -201,7 +213,8 @@ streamlit run app.py
 - A tabela de auditoria (*data grid*) tem usabilidade reduzida em telas de toque (dispositivos móveis).
 - Autenticação por código enviado ao e-mail (OTP) foi avaliada durante o desenvolvimento, mas não incorporada, em razão do limite de envio de e-mails do plano gratuito do Supabase.
 - A exclusão de conta depende de uma função SQL com privilégio elevado (`SECURITY DEFINER`) criada previamente no banco — o cliente Python usa apenas a chave anônima e não tem permissão para excluir usuários diretamente, por design de segurança do Supabase.
-- O sistema encontra-se em fase de protótipo funcional, validado tecnicamente e quanto à usabilidade, mas ainda não implantado em ambiente de produção comercial.
+- Não foram coletadas métricas quantitativas formais de precisão do motor de extração, nem a pontuação estruturada do System Usability Scale (SUS). A validação de usabilidade ocorreu de forma informal, por meio do uso do protótipo por aproximadamente 30 pessoas entre familiares e colegas, cujo retorno qualitativo orientou ajustes na interface, mas não substitui uma validação estatística formal.
+- O sistema encontra-se em fase de protótipo funcional, testado informalmente quanto à usabilidade, mas ainda não implantado em ambiente de produção comercial.
 
 ## 🔭 Roadmap / trabalhos futuros
 
@@ -209,8 +222,9 @@ streamlit run app.py
 - Incorporação de **Machine Learning preditivo** para antecipar meses de maior risco de microgastos.
 - Interface otimizada para dispositivos móveis (*mobile-first*).
 - Evolução para ambiente de produção real: domínio próprio, política de privacidade formal, infraestrutura de e-mail independente do plano gratuito e testes de carga com múltiplos usuários simultâneos.
+- Aplicação formal do System Usability Scale (SUS) e medição estruturada da taxa de acerto do motor de extração, para validação estatística complementar ao retorno qualitativo já coletado.
 
 ---
 
 ## 📝 Licença acadêmica
-Este projeto foi desenvolvido integralmente como Trabalho de Conclusão de Curso (TCC) do curso de Sistemas de Informação. Uso, cópia e distribuição são permitidos para fins estritamente acadêmicos, mediante a citação obrigatória dos autores originais.
+Este projeto foi desenvolvido integralmente como Trabalho de Conclusão de Curso (TCC) dos cursos de Engenharia de Software e Sistemas de Informação. Uso, cópia e distribuição são permitidos para fins estritamente acadêmicos, mediante a citação obrigatória dos autores originais.
