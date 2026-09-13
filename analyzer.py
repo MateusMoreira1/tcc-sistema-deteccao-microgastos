@@ -35,8 +35,41 @@ class SmartFinanceAnalyzer:
             df = pd.DataFrame(json.load(uploaded_file))
             return self._normalizar_estruturado(df)
         else:
-            df = pd.read_csv(uploaded_file, sep=None, engine='python', encoding='utf-8')
+            linha_inicio = self._detectar_inicio_tabela(uploaded_file)
+            df = pd.read_csv(uploaded_file, sep=None, engine='python', encoding='utf-8', skiprows=linha_inicio)
             return self._normalizar_estruturado(df)
+
+    def _detectar_inicio_tabela(self, uploaded_file):
+        """Detecta em qual linha a tabela de transações realmente começa,
+        pulando eventuais linhas de metadados do extrato (ex.: 'Conta',
+        'Período', 'Saldo') que alguns bancos incluem antes do cabeçalho
+        de verdade. Só olha as primeiras linhas do arquivo, para não
+        confundir uma descrição de transação com um cabeçalho.
+        Retorna 0 (não pula nada) se esse padrão não for identificado —
+        preservando o comportamento original para arquivos já no formato
+        esperado."""
+        try:
+            conteudo_bruto = uploaded_file.read()
+            uploaded_file.seek(0)  # devolve o ponteiro para a leitura seguinte
+            if isinstance(conteudo_bruto, bytes):
+                conteudo_bruto = conteudo_bruto.decode('utf-8', errors='ignore')
+            linhas = conteudo_bruto.splitlines()
+
+            palavras_chave = ['data', 'valor', 'descri', 'histor', 'categoria', 'tipo', 'lançamento', 'lancamento']
+            limite_busca = min(15, len(linhas))  # só considera o início do arquivo
+
+            for i in range(limite_busca):
+                linha_lower = linhas[i].lower()
+                acertos = sum(1 for palavra in palavras_chave if palavra in linha_lower)
+                if acertos >= 2:
+                    return i
+            return 0
+        except Exception:
+            try:
+                uploaded_file.seek(0)
+            except Exception:
+                pass
+            return 0
 
     def _classificar_fluxo(self, linha_upper):
         """Classifica uma linha em 'entrada', 'saida' ou None pela heurística de termos.
@@ -134,18 +167,76 @@ class SmartFinanceAnalyzer:
         df['data'] = pd.to_datetime(df['data'], dayfirst=True, errors='coerce')
         return df.dropna(subset=['data'])
 
+    def _remover_acentos(self, texto):
+        """Remove acentos de uma string, para permitir comparação de nomes
+        de coluna sem depender de acentuação exata (ex.: 'Histórico' vira
+        'historico')."""
+        import unicodedata
+        nfkd = unicodedata.normalize('NFD', texto)
+        return ''.join(c for c in nfkd if unicodedata.category(c) != 'Mn')
+
+    def _mapear_colunas_estruturado(self, df):
+        """Renomeia colunas de CSV/JSON para os nomes internos padrão
+        (data, descricao, valor, categoria, tipo), usando correspondência
+        por palavra-chave — sem diferenciar maiúsculas/acentos. Cada banco
+        nomeia as colunas do seu próprio jeito (ex.: 'Data Lançamento',
+        'Histórico'), então a correspondência exata de nome não pode ser
+        assumida. Colunas que não batem com nenhuma palavra-chave (ex.:
+        'Saldo') são mantidas como estão e simplesmente ignoradas depois."""
+        mapa_palavras_chave = [
+            ('data', 'data'),
+            ('valor', 'valor'),
+            ('descri', 'descricao'),
+            ('histor', 'descricao'),
+            ('categoria', 'categoria'),
+            ('tipo', 'tipo'),
+            ('fluxo', 'tipo'),
+        ]
+        renomeacoes = {}
+        nomes_ja_usados = set()
+        for coluna in df.columns:
+            coluna_normalizada = self._remover_acentos(str(coluna)).lower()
+            for palavra_chave, nome_padrao in mapa_palavras_chave:
+                if nome_padrao in nomes_ja_usados:
+                    continue
+                if palavra_chave in coluna_normalizada:
+                    renomeacoes[coluna] = nome_padrao
+                    nomes_ja_usados.add(nome_padrao)
+                    break
+        return df.rename(columns=renomeacoes)
+
+    def _converter_valor_brasileiro(self, valor):
+        """Converte um valor monetário para float, aceitando tanto formato
+        numérico padrão (1250.00) quanto formato brasileiro em texto
+        (1.250,00 ou 100,00). Tenta o formato padrão primeiro; só refaz
+        como formato brasileiro se a primeira tentativa falhar — assim,
+        arquivos que já usam ponto decimal continuam funcionando iguais."""
+        if pd.isna(valor):
+            return float('nan')
+        if isinstance(valor, (int, float)):
+            return float(valor)
+        texto = str(valor).strip()
+        tentativa = pd.to_numeric(texto, errors='coerce')
+        if pd.notna(tentativa):
+            return float(tentativa)
+        texto_br = texto.replace('.', '').replace(',', '.')
+        tentativa_br = pd.to_numeric(texto_br, errors='coerce')
+        return float(tentativa_br) if pd.notna(tentativa_br) else float('nan')
+
     def _normalizar_estruturado(self, df):
         """Garante que CSV/JSON tenham as colunas mínimas (data, descricao, valor,
         categoria, tipo) e que o valor seja sempre positivo."""
         if df.empty:
             return df
 
+        df = self._mapear_colunas_estruturado(df)
+
         # 1. Coluna 'tipo': se não vier explícita, deduz pelo sinal do valor ou pela descrição
         if 'tipo' not in df.columns:
             tipo_inferido = None
 
             if 'valor' in df.columns:
-                vals = pd.to_numeric(df['valor'], errors='coerce')
+                vals = df['valor'].apply(self._converter_valor_brasileiro)
                 if vals.notna().any() and (vals < 0).any():
                     # Valores assinados: negativo = saída, positivo = entrada
                     tipo_inferido = vals.apply(lambda v: 'saida' if (pd.notna(v) and v < 0) else 'entrada')
@@ -162,9 +253,9 @@ class SmartFinanceAnalyzer:
 
             df['tipo'] = tipo_inferido
 
-        # 2. Valor sempre positivo (módulo)
+        # 2. Valor sempre positivo (módulo) — aceita formato numérico padrão ou brasileiro
         if 'valor' in df.columns:
-            df['valor'] = pd.to_numeric(df['valor'], errors='coerce').abs()
+            df['valor'] = df['valor'].apply(self._converter_valor_brasileiro).abs()
             df = df.dropna(subset=['valor'])
 
         # 3. Categoria: se não vier, classifica pela descrição
